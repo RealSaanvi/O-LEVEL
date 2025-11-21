@@ -1,0 +1,818 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Generated Quiz</title>
+<style>
+  :root{--accent:#1a73e8;--ok:#28a745;--bad:#dc3545}
+  html { scroll-behavior: smooth; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial; background:#f0f2f5; margin:0; padding:80px 20px; color:#222; }
+  #timer-bar { position:fixed; top:0; left:0; width:100%; background:var(--accent); color:white; padding:10px 20px; display:flex; justify-content:center; gap:40px; font-weight:700; z-index:1001; }
+  .container { max-width:920px; margin:0 auto 80px; background:white; padding:20px; border-radius:10px; box-shadow:0 6px 22px rgba(0,0,0,0.08); }
+  #quiz-controls { display:flex; justify-content:center; gap:12px; margin-bottom:14px; }
+  #quiz-controls button { padding:10px 16px; border-radius:8px; border:none; cursor:pointer; font-weight:700; color:white; }
+  #randomize-btn{ background:#ff9800 } #show-all-btn{ background:#03a9f4 }
+  h1 { text-align:center; color:var(--accent); margin:6px 0 14px; }
+  h2.page-heading { color:var(--accent); border-bottom:2px solid #eee; padding-bottom:10px; margin-top:28px; }
+  #page-nav { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-bottom:16px; }
+  #page-nav a { text-decoration:none; color:var(--accent); font-weight:700; padding:8px 10px; border-radius:8px; }
+  .question-block { margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid #f0f0f0; }
+  .question-block p { font-weight:700; font-size:16px; margin:6px 0; }
+  .options { display:flex; gap:10px; margin-top:6px; }
+  .option { flex:1; padding:10px 12px; border-radius:8px; border:1px solid #d6d6d6; text-align:center; cursor:pointer; background:white; user-select:none; }
+  .option.locked { cursor:not-allowed; opacity:0.95; }
+  .option.correct { background:var(--ok); color:white; border-color:var(--ok); }
+  .option.wrong { background:var(--bad); color:white; border-color:var(--bad); }
+  #submit-btn { position:fixed; bottom:20px; right:20px; padding:12px 20px; border-radius:50px; border:none; background:var(--ok); color:white; font-weight:800; box-shadow:0 8px 20px rgba(0,0,0,0.12); cursor:pointer; z-index:1002; }
+  #back-to-top { display:none; position:fixed; bottom:20px; left:20px; z-index:1002; border:none; background:#444; color:white; padding:10px 14px; border-radius:50%; font-size:18px; cursor:pointer; }
+  #back-to-top:hover{ background:var(--accent) }
+  /* modal */
+  .modal { display:none; position:fixed; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.45); justify-content:center; align-items:center; z-index:1005; }
+  .modal-content { background:white; padding:22px; border-radius:10px; width:94%; max-width:640px; box-shadow:0 10px 35px rgba(0,0,0,0.25); }
+  .modal-content h2{ margin-top:0; color:var(--accent) }
+  .modal-controls{ display:flex; gap:10px; justify-content:center; margin-top:14px; }
+  .modal-controls button{ padding:10px 12px; border-radius:8px; border:none; font-weight:700; cursor:pointer; }
+  .small { font-size:14px; color:#444 }
+  #chapter-selection { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px; margin-top:10px; }
+  .tiny-btn { padding:8px 10px; border-radius:8px; border:none; font-weight:700; cursor:pointer; color:white; }
+</style>
+</head>
+<body>
+
+  <div id="timer-bar">
+    <span id="timer">Time: 00:00:00</span>
+    <span id="avg-time">Avg. Time/Q: 0s</span>
+  </div>
+
+  <div class="container">
+    <h1>Comprehensive Quiz</h1>
+
+    <div id="quiz-controls">
+      <button id="randomize-btn">Randomize Questions</button>
+      <button id="show-all-btn">Show All Questions</button>
+    </div>
+
+    <div id="page-nav"></div>
+    <div id="questions-container"></div>
+  </div>
+
+  <button id="submit-btn">Submit Quiz</button>
+  <button id="back-to-top" title="Go to top">↑</button>
+
+  <!-- Result Modal -->
+  <div id="result-modal" class="modal">
+    <div class="modal-content">
+      <h2>Quiz Results</h2>
+      <p id="total-time-text" class="small"></p>
+      <p id="attempted-text" class="small"></p>
+      <p id="pass-fail-text" class="small"></p>
+      <p id="percentage-text" class="small"></p>
+      <p><strong>Incorrect Answers:</strong></p>
+      <p id="wrong-answers-list" class="small">None</p>
+      <div class="modal-controls">
+        <button id="requiz-btn" style="background:#17a2b8;color:white;">Re-Quiz</button>
+        <button id="requiz-wrong-btn" style="background:#ffc107;">Re-Quiz Wrong Answers</button>
+        <button id="close-modal-btn" style="background:#6c757d;color:white;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Randomize Modal -->
+  <div id="randomize-modal" class="modal">
+    <div class="modal-content">
+      <h2 style="text-align:center;margin-top:0;">Randomize Quiz Settings</h2>
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:8px;">
+        <button id="select-all-pages" class="tiny-btn" style="background:var(--accent)">Select All Pages</button>
+        <button id="clear-all-pages" class="tiny-btn" style="background:#6c757d">Clear All Pages</button>
+      </div>
+      <label class="small">Select Pages:</label>
+      <div id="chapter-selection"></div>
+
+      <label class="small" style="margin-top:8px;">Number of Questions:</label>
+      <input id="num-questions" type="number" value="50" min="1" style="width:100%;padding:8px;border-radius:8px;border:1px solid #ddd;margin-top:6px;">
+
+      <div class="modal-controls" style="margin-top:12px;">
+        <button id="start-random-quiz-btn" style="background:#28a745;color:white;">Start Quiz</button>
+        <button id="cancel-random-quiz-btn" style="background:#6c757d;color:white;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* injected data */
+const answerKeys = {
+  "63": [
+    "A",
+    "A",
+    "D",
+    "B",
+    "C",
+    "B",
+    "D",
+    "D",
+    "A",
+    "D",
+    "C",
+    "C",
+    "C",
+    "B",
+    "B",
+    "D",
+    "D",
+    "B",
+    "D",
+    "A",
+    "C",
+    "D",
+    "B",
+    "D",
+    "D",
+    "B",
+    "B",
+    "C",
+    "C",
+    "A",
+    "C",
+    "D",
+    "B",
+    "D",
+    "D",
+    "D",
+    "D",
+    "B",
+    "D",
+    "A",
+    "D",
+    "D",
+    "B",
+    "D",
+    "A",
+    "A",
+    "A",
+    "D",
+    "C",
+    "B"
+  ],
+  "122": [
+    "D",
+    "A",
+    "C",
+    "C",
+    "A",
+    "A",
+    "D",
+    "B",
+    "D",
+    "D",
+    "D",
+    "C",
+    "A",
+    "A",
+    "B",
+    "D",
+    "A",
+    "D",
+    "D",
+    "A",
+    "D",
+    "D",
+    "C",
+    "C",
+    "D",
+    "C",
+    "D",
+    "D",
+    "B",
+    "C",
+    "D",
+    "C",
+    "B",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "B",
+    "D",
+    "C",
+    "A",
+    "C",
+    "D",
+    "A",
+    "A",
+    "C",
+    "D",
+    "D"
+  ],
+  "175": [
+    "A",
+    "C",
+    "D",
+    "C",
+    "D",
+    "A",
+    "A",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "A",
+    "D",
+    "B",
+    "D",
+    "D",
+    "B",
+    "D",
+    "A",
+    "C",
+    "B",
+    "D",
+    "C",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "C",
+    "D",
+    "C",
+    "A",
+    "D",
+    "C",
+    "B",
+    "C",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D",
+    "D"
+  ],
+  "325": [
+    "B",
+    "A",
+    "D",
+    "C",
+    "D",
+    "A",
+    "C",
+    "B",
+    "B",
+    "A",
+    "A",
+    "B",
+    "A",
+    "D",
+    "B",
+    "B",
+    "C",
+    "C",
+    "B",
+    "D",
+    "D",
+    "C",
+    "A",
+    "D",
+    "D",
+    "B",
+    "D",
+    "A",
+    "A",
+    "A",
+    "A",
+    "A",
+    "A",
+    "A",
+    "A",
+    "A",
+    "C",
+    "D",
+    "C",
+    "D",
+    "A",
+    "D",
+    "C",
+    "B",
+    "C",
+    "B",
+    "B",
+    "B",
+    "C",
+    "C"
+  ],
+  "375": [
+    "C",
+    "B",
+    "C",
+    "A",
+    "B",
+    "B",
+    "A",
+    "D",
+    "B",
+    "D",
+    "A",
+    "A",
+    "B",
+    "B",
+    "A",
+    "D",
+    "B",
+    "C",
+    "B",
+    "D",
+    "C",
+    "C",
+    "B",
+    "C",
+    "D",
+    "C",
+    "A",
+    "A",
+    "B",
+    "D",
+    "C",
+    "D",
+    "C",
+    "A",
+    "D",
+    "D",
+    "D",
+    "B",
+    "A",
+    "C",
+    "B",
+    "D",
+    "C",
+    "D",
+    "D",
+    "C",
+    "D",
+    "C",
+    "A",
+    "D"
+  ],
+  "437": [
+    "A",
+    "A",
+    "C",
+    "B",
+    "B",
+    "B",
+    "B",
+    "B",
+    "D",
+    "D",
+    "C",
+    "A",
+    "D",
+    "C",
+    "D",
+    "A",
+    "D",
+    "D",
+    "D",
+    "A",
+    "B",
+    "B",
+    "A",
+    "B",
+    "D",
+    "A",
+    "A",
+    "B",
+    "C",
+    "C",
+    "A",
+    "A",
+    "D",
+    "B",
+    "A",
+    "D",
+    "B",
+    "A",
+    "C",
+    "D",
+    "D",
+    "C",
+    "C",
+    "D",
+    "B",
+    "D",
+    "C",
+    "B",
+    "C",
+    "A"
+  ]
+};
+const pageLabels = {
+  "63": {
+    "full": "Page 63",
+    "short": "P63"
+  },
+  "122": {
+    "full": "Page 122",
+    "short": "P122"
+  },
+  "175": {
+    "full": "Page 175",
+    "short": "P175"
+  },
+  "325": {
+    "full": "Page 325",
+    "short": "P325"
+  },
+  "375": {
+    "full": "Page 375",
+    "short": "P375"
+  },
+  "437": {
+    "full": "Page 437",
+    "short": "P437"
+  }
+};
+
+/* state */
+let userProgress = {};       // keyed by p<page>-q<q>
+let timerInterval = null;
+let totalSeconds = 0;
+let allQuestionsFlattened = [];
+let lastQuizSet = [];        // array of question objects shown last
+let wrongAnswersSet = [];    // array of question objects
+let isRandomMode = false;
+
+/* DOM */
+const chapterNav = document.getElementById('page-nav');
+const questionsContainer = document.getElementById('questions-container');
+const submitBtn = document.getElementById('submit-btn');
+const resultModal = document.getElementById('result-modal');
+const randomizeModal = document.getElementById('randomize-modal');
+const closeModalBtn = document.getElementById('close-modal-btn');
+const topButton = document.getElementById('back-to-top');
+const timerDisplay = document.getElementById('timer');
+const avgTimeDisplay = document.getElementById('avg-time');
+const randomizeBtn = document.getElementById('randomize-btn');
+const showAllBtn = document.getElementById('show-all-btn');
+const requizBtn = document.getElementById('requiz-btn');
+const requizWrongBtn = document.getElementById('requiz-wrong-btn');
+const startRandomQuizBtn = document.getElementById('start-random-quiz-btn');
+const cancelRandomQuizBtn = document.getElementById('cancel-random-quiz-btn');
+const chapterSelectionContainer = document.getElementById('chapter-selection');
+const numQuestionsInput = document.getElementById('num-questions');
+const selectAllPagesBtn = document.getElementById('select-all-pages');
+const clearAllPagesBtn = document.getElementById('clear-all-pages');
+
+/* helper: flatten questions from answerKeys into objects */
+function flattenAllQuestions(){
+  allQuestionsFlattened = [];
+  const pages = Object.keys(answerKeys).slice().sort((a,b)=>{
+    const na = Number(a), nb = Number(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a < b ? -1 : 1;
+  });
+  pages.forEach(page=>{
+    answerKeys[page].forEach((ans, idx)=>{
+      allQuestionsFlattened.push({ page: String(page), questionNumber: idx+1, correctAnswer: ans });
+    });
+  });
+}
+
+/* Normalize question list (ensures fields present) */
+function normalizeQuestions(list){
+  return list.map(q=>{
+    const page = String(q.page);
+    const qn = Number(q.questionNumber);
+    let ca = null;
+    if (q.correctAnswer !== undefined && q.correctAnswer !== null) ca = q.correctAnswer;
+    else if (answerKeys[page] && answerKeys[page][qn-1] !== undefined) ca = answerKeys[page][qn-1];
+    return { page: page, questionNumber: qn, correctAnswer: ca };
+  });
+}
+
+/* reset state for a fresh quiz run */
+function resetQuizState(){
+  userProgress = {};
+  // Do NOT clear wrongAnswersSet here — we keep it for re-quiz flow
+  totalSeconds = 0;
+  clearInterval(timerInterval);
+  timerDisplay.textContent = 'Time: 00:00:00';
+  avgTimeDisplay.textContent = 'Avg. Time/Q: 0s';
+  startTimer();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* render quiz view; pass array of question objects and whether it's full view */
+function renderQuizView(questionsToRender, isFullView){
+  const normalized = normalizeQuestions(questionsToRender);
+  lastQuizSet = normalized.slice();
+  isRandomMode = !isFullView;
+  questionsContainer.innerHTML = '';
+  chapterNav.innerHTML = '';
+
+  if (isFullView){
+    chapterNav.style.display = 'flex';
+    const pages = Object.keys(answerKeys).slice().sort((a,b)=>{
+      const na = Number(a), nb = Number(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return a < b ? -1 : 1;
+    });
+    pages.forEach(page=>{
+      const link = document.createElement('a');
+      link.href = '#p' + page;
+      link.textContent = pageLabels[page] ? pageLabels[page].full : ('Page ' + page);
+      chapterNav.appendChild(link);
+    });
+  } else {
+    chapterNav.style.display = 'none';
+  }
+
+  let currentPage = null;
+  normalized.forEach(q=>{
+    if (q.page !== currentPage){
+      currentPage = q.page;
+      const heading = document.createElement('h2');
+      heading.className = 'page-heading';
+      heading.id = 'p' + currentPage;
+      heading.textContent = pageLabels[currentPage] ? pageLabels[currentPage].full : ('Page ' + currentPage);
+      questionsContainer.appendChild(heading);
+    }
+    renderQuestionBlock(q, isFullView);
+  });
+}
+
+/* render a single question block */
+function renderQuestionBlock(q, isFullView){
+  const block = document.createElement('div');
+  block.className = 'question-block';
+
+  const qText = document.createElement('p');
+  qText.textContent = (isFullView ? '' : (pageLabels[q.page] ? pageLabels[q.page].full + ' - ' : 'Page ' + q.page + ' - ')) + 'Question ' + q.questionNumber;
+  block.appendChild(qText);
+
+  const options = document.createElement('div');
+  options.className = 'options';
+  ['A','B','C','D'].forEach(letter=>{
+    const el = document.createElement('div');
+    el.className = 'option';
+    el.textContent = letter;
+    el.dataset.page = q.page;
+    el.dataset.question = q.questionNumber;
+    el.dataset.option = letter;
+    el.addEventListener('click', () => selectAnswer(q.page, q.questionNumber, letter));
+    options.appendChild(el);
+  });
+
+  block.appendChild(options);
+  questionsContainer.appendChild(block);
+}
+
+/* when user selects an answer */
+function selectAnswer(page, qNum, selectedOption){
+  const key = 'p' + page + '-q' + qNum;
+  if (userProgress[key]) return; // only one attempt per question
+
+  // prefer master answerKeys, fallback to lastQuizSet correctAnswer
+  let correct = null;
+  if (answerKeys[String(page)] && answerKeys[String(page)][qNum-1] !== undefined) {
+    correct = answerKeys[String(page)][qNum-1];
+  } else {
+    const qobj = lastQuizSet.find(x => String(x.page) === String(page) && Number(x.questionNumber) === Number(qNum));
+    if (qobj) correct = qobj.correctAnswer;
+  }
+
+  if (correct === null || correct === undefined) {
+    // defensive: store but don't lock UI
+    userProgress[key] = { selected: selectedOption, isCorrect: false, page: page, questionNumber: qNum };
+    return;
+  }
+
+  const isCorrect = selectedOption === correct;
+  userProgress[key] = { selected: selectedOption, isCorrect: isCorrect, page: page, questionNumber: qNum };
+
+  const optionElements = document.querySelectorAll('.option[data-page="' + page + '"][data-question="' + qNum + '"]');
+  optionElements.forEach(el => {
+    el.classList.add('locked');
+    if (el.textContent === selectedOption) {
+      el.classList.add(isCorrect ? 'correct' : 'wrong');
+      el.classList.add('selected');
+    }
+    if (!isCorrect && el.textContent === correct) {
+      el.classList.add('correct');
+    }
+  });
+
+  updateAverageTime();
+}
+
+/* submit quiz, compute results and populate modal */
+function submitQuiz(){
+  // find attempted answers among the last quiz set
+  const attemptedEntries = lastQuizSet.map(q=>{
+    const key = 'p' + q.page + '-q' + q.questionNumber;
+    return userProgress[key] ? userProgress[key] : null;
+  }).filter(Boolean);
+
+  const attempted = attemptedEntries.length;
+  const correctCount = attemptedEntries.filter(a => a.isCorrect).length;
+  const percentage = attempted > 0 ? ((correctCount / attempted) * 100).toFixed(2) : 0;
+  const passStatus = percentage >= 50 ? 'Pass' : 'Fail';
+  const timeTaken = new Date(totalSeconds * 1000).toISOString().slice(11,19);
+
+  // Build wrongQuestions robustly:
+  let wrongQs = attemptedEntries.filter(e => !e.isCorrect).map(e => {
+    const qobj = lastQuizSet.find(q => String(q.page) === String(e.page) && Number(q.questionNumber) === Number(e.questionNumber));
+    if (qobj) {
+      return { page: String(qobj.page), questionNumber: Number(qobj.questionNumber), correctAnswer: qobj.correctAnswer };
+    }
+    return null;
+  }).filter(Boolean);
+
+  // Fallback: if no wrongQs found via lastQuizSet (or to include any missed entries), also introspect userProgress
+  if (wrongQs.length === 0) {
+    const fromProgress = Object.values(userProgress).filter(x => !x.isCorrect).map(x => {
+      const correctAns = (answerKeys[String(x.page)] && answerKeys[String(x.page)][x.questionNumber - 1]) || null;
+      return { page: String(x.page), questionNumber: Number(x.questionNumber), correctAnswer: correctAns };
+    });
+    // merge and dedupe by page+questionNumber
+    const mapKey = {};
+    fromProgress.concat(wrongQs).forEach(item => {
+      const k = item.page + '|' + item.questionNumber;
+      mapKey[k] = item;
+    });
+    wrongQs = Object.values(mapKey);
+  }
+
+  // store globally for re-quiz wrong answers
+  wrongAnswersSet = wrongQs.slice();
+
+  const wrongAnswersText = wrongQs.length ? wrongQs.map(q => (pageLabels[q.page] && pageLabels[q.page].short ? pageLabels[q.page].short : ('P' + q.page)) + 'Q' + q.questionNumber).join(', ') : 'None';
+
+  document.getElementById('total-time-text').textContent = 'Time at submission: ' + timeTaken;
+  document.getElementById('attempted-text').textContent = 'Questions Attempted: ' + attempted;
+  document.getElementById('pass-fail-text').textContent = 'Result: ' + passStatus;
+  document.getElementById('percentage-text').textContent = 'Your Score: ' + percentage + '%';
+  document.getElementById('wrong-answers-list').textContent = wrongAnswersText;
+
+  requizWrongBtn.style.display = wrongQs.length > 0 ? 'inline-block' : 'none';
+  resultModal.style.display = 'flex';
+}
+
+/* timer functions */
+function startTimer(){
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(()=>{
+    totalSeconds++;
+    const timeString = new Date(totalSeconds * 1000).toISOString().slice(11,19);
+    timerDisplay.textContent = 'Time: ' + timeString;
+  }, 1000);
+}
+
+function updateAverageTime(){
+  const attemptedCount = Object.keys(userProgress).length;
+  if (attemptedCount > 0) {
+    const avg = (totalSeconds / attemptedCount).toFixed(1);
+    avgTimeDisplay.textContent = 'Avg. Time/Q: ' + avg + 's';
+  }
+}
+
+/* RANDOMIZE modal logic */
+function openRandomizeModal(){
+  chapterSelectionContainer.innerHTML = '';
+  const pages = Object.keys(answerKeys).slice().sort((a,b)=>{
+    const na = Number(a), nb = Number(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a < b ? -1 : 1;
+  });
+  pages.forEach(page=>{
+    const div = document.createElement('div');
+    div.innerHTML = '<input type="checkbox" id="p-' + page + '" name="page" value="' + page + '" checked>' +
+                    '<label for="p-' + page + '"> ' + (pageLabels[page] ? pageLabels[page].full : ('Page ' + page)) + '</label>';
+    chapterSelectionContainer.appendChild(div);
+  });
+  numQuestionsInput.value = Math.min(50, allQuestionsFlattened.length);
+  randomizeModal.style.display = 'flex';
+}
+
+function handleRandomQuizStart(evt){
+  evt.preventDefault();
+  const selectedPages = Array.from(document.querySelectorAll('#chapter-selection input[name="page"]:checked')).map(cb => cb.value);
+  const numQuestions = parseInt(numQuestionsInput.value) || 1;
+
+  if (selectedPages.length === 0){
+    showCustomAlert('Please select at least one Page.');
+    return;
+  }
+  if (numQuestions < 1){
+    showCustomAlert('Please enter a valid number of questions (minimum 1).');
+    return;
+  }
+
+  const filtered = allQuestionsFlattened.filter(q => selectedPages.includes(String(q.page)));
+  if (filtered.length === 0){
+    showCustomAlert('No questions found in the selected pages.');
+    return;
+  }
+
+  // shuffle - Fisher-Yates
+  for (let i = filtered.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+  }
+
+  let randomSet = filtered.slice(0, numQuestions);
+
+  // sort by page then questionNumber
+  randomSet.sort((a,b)=>{
+    const na = Number(a.page), nb = Number(b.page);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+    if (a.page !== b.page) return a.page < b.page ? -1 : 1;
+    return a.questionNumber - b.questionNumber;
+  });
+
+  resetQuizState();
+  randomizeModal.style.display = 'none';
+  renderQuizView(randomSet, false);
+}
+
+/* show a custom small modal alert */
+function showCustomAlert(message){
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;z-index:2000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;';
+  const content = document.createElement('div');
+  content.style.cssText = 'background:white;padding:16px;border-radius:8px;max-width:320px;text-align:center;';
+  const p = document.createElement('p'); p.textContent = message;
+  const ok = document.createElement('button'); ok.textContent = 'OK';
+  ok.style.cssText = 'margin-top:12px;padding:8px 12px;border-radius:6px;border:none;background:var(--accent);color:white;cursor:pointer;';
+  ok.onclick = () => document.body.removeChild(modal);
+  content.appendChild(p); content.appendChild(ok);
+  modal.appendChild(content); document.body.appendChild(modal);
+}
+
+/* Event bindings */
+submitBtn.addEventListener('click', submitQuiz);
+closeModalBtn.addEventListener('click', () => resultModal.style.display = 'none');
+window.addEventListener('click', (e)=> { if (e.target === resultModal) resultModal.style.display = 'none'; });
+
+randomizeBtn.addEventListener('click', openRandomizeModal);
+startRandomQuizBtn.addEventListener('click', handleRandomQuizStart);
+cancelRandomQuizBtn.addEventListener('click', () => randomizeModal.style.display = 'none');
+
+selectAllPagesBtn.addEventListener('click', ()=> {
+  document.querySelectorAll('#chapter-selection input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+clearAllPagesBtn.addEventListener('click', ()=> {
+  document.querySelectorAll('#chapter-selection input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
+
+showAllBtn.addEventListener('click', ()=>{
+  resetQuizState();
+  allQuestionsFlattened.sort((a,b)=>{
+    const na = Number(a.page), nb = Number(b.page);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+    if (a.page !== b.page) return a.page < b.page ? -1 : 1;
+    return a.questionNumber - b.questionNumber;
+  });
+  renderQuizView(allQuestionsFlattened, true);
+});
+
+requizBtn.addEventListener('click', ()=>{
+  resultModal.style.display = 'none';
+  resetQuizState();
+  renderQuizView(lastQuizSet, !isRandomMode);
+});
+
+requizWrongBtn.addEventListener('click', ()=>{
+  resultModal.style.display = 'none';
+  if (!wrongAnswersSet || wrongAnswersSet.length === 0){
+    showCustomAlert('No wrong answers to re-quiz.');
+    return;
+  }
+  // copy the wrong set BEFORE reseting state (resetQuizState no longer wipes wrongAnswersSet, but still safer)
+  const renderSet = wrongAnswersSet.map(q => ({ page: q.page, questionNumber: q.questionNumber, correctAnswer: q.correctAnswer }));
+  resetQuizState();
+  renderQuizView(renderSet, false);
+});
+
+/* back-to-top */
+window.onscroll = () => { topButton.style.display = (document.body.scrollTop > 120 || document.documentElement.scrollTop > 120) ? 'block' : 'none'; };
+topButton.addEventListener('click', ()=> window.scrollTo({ top: 0, behavior: 'smooth' }) );
+
+/* init */
+flattenAllQuestions();
+renderQuizView(allQuestionsFlattened, true);
+startTimer();
+
+</script>
+</body>
+</html>
